@@ -1,1 +1,83 @@
-đặt logic target ở đây
+-- ======================================================================
+-- PHẦN LOGIC TARGET: TELEPORT VÀ VIEW HEAD
+-- ======================================================================
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local localPlayer = Players.LocalPlayer
+
+_G.HubState = _G.HubState or {}
+_G.HubLogic = _G.HubLogic or {}
+
+_G.HubState.singleTargetPlayer = nil
+_G.HubState.isTargetViewEnabled = false
+
+-- 1. TÍNH NĂNG TELEPORT (Dịch chuyển giữ khoảng cách 0.01 stud tránh trùng cơ thể & crash)
+_G.HubLogic.TeleportToSingleTarget = function()
+    local targetPlayer = _G.HubState.singleTargetPlayer
+    if not targetPlayer or not targetPlayer.Character then
+        warn("[TARGET LOGIC]: Chưa chọn người chơi hoặc người chơi không có Character!")
+        return
+    end
+
+    local myChar = localPlayer.Character
+    if not myChar then return end
+
+    local myHRP = myChar:FindFirstChild("HumanoidRootPart")
+    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+
+    if myHRP and targetHRP then
+        pcall(function()
+            -- Lấy CFrame mục tiêu và lùi ra sau 0.01 stud để tránh trùng vị trí
+            local targetCFrame = targetHRP.CFrame
+            local safeOffsetCFrame = targetCFrame * CFrame.new(0, 0, 0.01)
+            myHRP.CFrame = safeOffsetCFrame
+        end)
+    end
+end
+
+-- 2. TÍNH NĂNG VIEW (Theo dõi vào Head của Target, khi tắt quay lại Head bản thân)
+local viewConnection = nil
+
+_G.HubLogic.ToggleViewTarget = function(enable)
+    _G.HubState.isTargetViewEnabled = enable
+
+    if viewConnection then
+        viewConnection:Disconnect()
+        viewConnection = nil
+    end
+
+    local camera = Workspace.CurrentCamera
+    if not camera then return end
+
+    if enable then
+        viewConnection = RunService.RenderStepped:Connect(function()
+            if not _G.HubState.isTargetViewEnabled then
+                if viewConnection then
+                    viewConnection:Disconnect()
+                    viewConnection = nil
+                end
+                return
+            end
+
+            local targetPlayer = _G.HubState.singleTargetPlayer
+            if targetPlayer and targetPlayer.Character then
+                local head = targetPlayer.Character:FindFirstChild("Head")
+                if head then
+                    camera.CameraSubject = head
+                end
+            end
+        end)
+    else
+        -- Khi tắt: Quay lại View vào Head của bản thân
+        if localPlayer.Character then
+            local myHead = localPlayer.Character:FindFirstChild("Head") or localPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if myHead then
+                camera.CameraSubject = myHead
+            end
+        end
+    end
+end
+
+print("[SUCCESS]: Đã nạp thành công module Target Logic!")
